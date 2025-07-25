@@ -1,42 +1,191 @@
 ﻿@page "/documentos"
+@using System.Text
 @using ZiurApp.Client.Services
 @using ZiurApp.Shared.Models
 @inject DocumentoService DocumentoService
+@inject IJSRuntime JS
 
-<h3>Listado de Documentos</h3>
+<h3 class="mt-4">📋 Listado de Documentos</h3>
 
 @if (documentos == null)
 {
-    <p>Cargando datos...</p>
+    <div class="spinner-border text-primary mt-4" role="status">
+        <span class="visually-hidden">Cargando...</span>
+    </div>
 }
 else
 {
-    <table class="table">
-        <thead>
-            <tr>
-                <th>Código</th>
-                <th>Descripción</th>
-                <th>¿Activa?</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var doc in documentos)
-            {
+    <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+        <input type="text"
+               class="form-control w-auto"
+               placeholder="🔎 Buscar descripción..."
+               @bind="filtro"
+               @bind:event="oninput" />
+
+        <button class="btn btn-outline-secondary" @onclick="ToggleJson">
+            📄 Ver JSON
+        </button>
+
+        <button class="btn btn-outline-success" @onclick="ExportarCSV">
+            💾 Exportar a CSV
+        </button>
+    </div>
+
+    @if (!Filtrados.Any())
+    {
+        <div class="alert alert-warning">⚠️ No se encontraron documentos con la búsqueda ingresada.</div>
+    }
+    else
+    {
+        <table class="table table-bordered table-hover table-striped">
+            <thead class="table-dark">
                 <tr>
-                    <td>@doc.Codigo</td>
-                    <td>@doc.Descripcion</td>
-                    <td>@(doc.VActiva ? "Sí" : "No")</td>
+                    <th style="cursor:pointer;" @onclick='() => CambiarOrden("Codigo")'>Código</th>
+                    <th style="cursor:pointer;" @onclick='() => CambiarOrden("Descripcion")'>Descripción</th>
+                    <th style="cursor:pointer;" class="text-center" @onclick='() => CambiarOrden("VActiva")'>¿Activa?</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+
+            <tbody>
+                @foreach (var doc in Ordenados)
+                {
+                    <tr>
+                        <td>@doc.Codigo</td>
+                        <td>@doc.Descripcion</td>
+                        <td class="text-center">
+                            @if (doc.VActiva)
+                            {
+                                <span class="badge bg-success">Sí</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">No</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <button class="btn btn-outline-primary" @onclick="PaginaAnterior" disabled="@(@currentPage == 1)">
+                ⬅️ Anterior
+            </button>
+
+            <span>Página @currentPage de @TotalPaginas</span>
+
+            <button class="btn btn-outline-primary" @onclick="PaginaSiguiente" disabled="@(@currentPage == TotalPaginas)">
+                Siguiente ➡️
+            </button>
+        </div>
+    }
+
+    @if (mostrarJson)
+    {
+        <pre class="bg-light p-3 border rounded mt-4">
+        @System.Text.Json.JsonSerializer.Serialize(Filtrados, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })
+                </pre>
+    }
 }
 
 @code {
     private List<Documento>? documentos;
+    private string filtro = string.Empty;
+    private bool mostrarJson = false;
 
+    //Filtro
+    private IEnumerable<Documento> Filtrados =>
+        string.IsNullOrWhiteSpace(filtro)
+            ? documentos ?? Enumerable.Empty<Documento>()
+            : documentos?.Where(d =>
+                d.Descripcion.Contains(filtro, StringComparison.OrdinalIgnoreCase))
+              ?? Enumerable.Empty<Documento>();
+
+    // Paginación
+    private int currentPage = 1;
+    private int pageSize = 5;
+
+    private int TotalPaginas =>
+        (int)Math.Ceiling((double)Filtrados.Count() / pageSize);
+
+    private IEnumerable<Documento> Paginados =>
+        Filtrados
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize);
+
+    private void PaginaAnterior()
+    {
+        if (currentPage > 1)
+            currentPage--;
+    }
+
+    private void PaginaSiguiente()
+    {
+        if (currentPage < TotalPaginas)
+            currentPage++;
+    }
+
+    // Ordenamiento
+    private string columnaOrden = "Codigo";
+    private bool ascendente = true;
+
+    private IEnumerable<Documento> Ordenados =>
+        columnaOrden switch
+        {
+            "Descripcion" => ascendente
+                ? Paginados.OrderBy(d => d.Descripcion)
+                : Paginados.OrderByDescending(d => d.Descripcion),
+
+            "VActiva" => ascendente
+                ? Paginados.OrderBy(d => d.VActiva)
+                : Paginados.OrderByDescending(d => d.VActiva),
+
+            _ => ascendente
+                ? Paginados.OrderBy(d => d.Codigo)
+                : Paginados.OrderByDescending(d => d.Codigo)
+        };
+
+    void CambiarOrden(string columna)
+    {
+        if (columnaOrden == columna)
+            ascendente = !ascendente;
+        else
+        {
+            columnaOrden = columna;
+            ascendente = true;
+        }
+    }
+
+    // JSON toggle
+    void ToggleJson() => mostrarJson = !mostrarJson;
+
+    // CSV export
+    private async Task ExportarCSV()
+    {
+        var csv = new StringBuilder();
+        csv.AppendLine("Codigo,Descripcion,VActiva");
+
+        foreach (var doc in Filtrados)
+        {
+            csv.AppendLine($"{doc.Codigo},{doc.Descripcion},{doc.VActiva}");
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(csv.ToString());
+        var base64 = Convert.ToBase64String(bytes);
+
+        await JS.InvokeVoidAsync("descargarCSV", base64, "documentos.csv");
+    }
+
+    
     protected override async Task OnInitializedAsync()
     {
-        documentos = await DocumentoService.ObtenerDocumentosAsync();
+        try
+        {
+            documentos = await DocumentoService.ObtenerDocumentosAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error al obtener documentos: {ex.Message}");
+        }
     }
 }
