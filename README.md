@@ -17,8 +17,10 @@ Esta aplicación consume una API REST protegida por token y despliega los result
 - GitHub
 
 ## Cómo ejecutar
-1. Abre en Visual Studio y ejecuta el proyecto `ZiurApp.Server`.
-2. Accede a `https://localhost:xxxx/documentos` en el navegador.
+1. Clonar el repositorio
+   https://github.com/Santiago-Arredondo/ZiurApp.git
+2. Abre ZiurApp.sln en Visual Studio 2022+
+3. Establece ZiurApp.Server como proyecto de inicio y ejecuta.
 
 ## Autor
 Desarrollado por Santiago Arredondo Vergara para prueba técnica.
