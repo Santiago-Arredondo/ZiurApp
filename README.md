@@ -2,6 +2,14 @@
 
 Esta aplicación consume una API REST protegida por token y despliega los resultados en una tabla usando Blazor WebAssembly.
 
+- Consumo de API REST con token de autorización
+- Despliegue de resultados en grilla (tabla HTML con Bootstrap)
+- Búsqueda en tiempo real por descripción
+- Ordenamiento por columnas (clic en encabezado)
+- Paginación (5 registros por página)
+- Exportación a CSV
+- Visualización opcional de datos en formato JSON
+
 ## Tecnologías
 - .NET 7
 - Blazor WASM (hosted)
